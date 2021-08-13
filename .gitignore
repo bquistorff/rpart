@@ -3,3 +3,10 @@
 .RData
 .Ruserdata
 rpart.Rproj
+src-i386/
+src-x64/
+src/*.dll
+vignettes*/*.pdf
+vignettes*/*.tex
+vignettes*/*.gz
+src/*.o

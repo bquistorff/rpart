@@ -14,7 +14,7 @@
 #include "rpartproto.h"
 
 int
-partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
+partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2, int n1_te, int n2_te)
 {
     pNode me;
     double tempcp;
@@ -23,11 +23,12 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
     double left_risk, right_risk;
     int left_split, right_split;
     double twt;
-    int nleft, nright;
-    int n;
+    int nleft, nright, nleft_te, nright_te;
+    int n, n_te;
 
     me = splitnode;
     n = n2 - n1;                /* total number of observations */
+	n_te = n2_te - n1_te;
 
     if (nodenum > 1) {
 	twt = 0;
@@ -35,7 +36,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
 	for (i = n1; i < n2; i++) {
 	    j = rp.sorts[0][i]; /* any variable would do, use first */
 	    if (j < 0)
-		j = -(1 + j);   /* if missing, value = -(1+ true index) */
+			j = -(1 + j);   /* if missing, value = -(1+ true index) */
 	    rp.wtemp[k] = rp.wt[j];
 	    rp.ytemp[k] = rp.ydata[j];
 	    twt += rp.wt[j];
@@ -43,6 +44,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
 	}
 	(*rp_eval) (n, rp.ytemp, me->response_est, &(me->risk), rp.wtemp);
 	me->num_obs = n;
+	me->num_obs_te = n_te;
 	me->sum_wt = twt;
 	tempcp = me->risk;
 	if (tempcp > me->complexity)
@@ -53,7 +55,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
     /*
      * Can I quit now ?
      */
-    if (me->num_obs < rp.min_split || tempcp <= rp.alpha ||
+    if (me->num_obs < rp.min_split || me->num_obs_te < rp.min_split_te || tempcp <= rp.alpha ||
 	nodenum > rp.maxnode) {
 	me->complexity = rp.alpha;
 	*sumrisk = me->risk;
@@ -70,7 +72,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
     /*
      * Guess I have to do the split
      */
-    bsplit(me, n1, n2);
+    bsplit(me, n1, n2, n1_te, n2_te);
     if (!me->primary) {
 	/*
 	 * This is rather rare -- but I couldn't find a split worth doing
@@ -90,7 +92,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
 	surrogate(me, n1, n2);
     else
 	me->surrogate = (pSplit) NULL;
-    nodesplit(me, nodenum, n1, n2, &nleft, &nright);
+    nodesplit(me, nodenum, n1, n2, n1_te, n2_te, &nleft, &nright, &nleft_te, &nright_te);
 
     /*
      * split the leftson
@@ -98,7 +100,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
     me->leftson = (pNode) CALLOC(1, nodesize);
     (me->leftson)->complexity = tempcp - rp.alpha;
     left_split =
-	partition(2 * nodenum, me->leftson, &left_risk, n1, n1 + nleft);
+	partition(2 * nodenum, me->leftson, &left_risk, n1, n1 + nleft, n1_te, n1_te+nleft_te);
 
     /*
      * Update my estimate of cp, and split the right son.
@@ -113,7 +115,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
     me->rightson = (pNode) CALLOC(1, nodesize);
     (me->rightson)->complexity = tempcp - rp.alpha;
     right_split = partition(1 + 2 * nodenum, me->rightson, &right_risk,
-			    n1 + nleft, n1 + nleft + nright);
+			    n1 + nleft, n1 + nleft + nright, n1_te + nleft_te, n1_te + nleft_te + nright_te);
 
     /*
      * Now calculate my actual C.P., which depends on children nodes, and
@@ -156,18 +158,24 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2)
 	(left_split + right_split + 1);
 
     if (me->complexity <= rp.alpha) {
-	/*
-	 * All was in vain!  This node doesn't split after all.
-	 */
-	free_tree(me, 0);
-	*sumrisk = me->risk;
-	for (i = n1; i < n2; i++) {
-	    j = rp.sorts[0][i];
-	    if (j < 0)
-		j = -(1 + j);
-	    rp.which[j] = nodenum;      /* revert to the old nodenumber */
-	}
-	return 0;               /* return # of splits */
+		/*
+		* All was in vain!  This node doesn't split after all.
+		*/
+		free_tree(me, 0);
+		*sumrisk = me->risk;
+		for (i = n1; i < n2; i++) {
+			j = rp.sorts[0][i];
+			if (j < 0)
+			j = -(1 + j);
+			rp.which[j] = nodenum;      /* revert to the old nodenumber */
+		}
+		for (i = n1_te; i < n2_te; i++) {
+			j = rp.sorts_te[0][i];
+			if (j < 0)
+			j = -(1 + j);
+			rp.which_te[j] = nodenum;      /* revert to the old nodenumber */
+		}
+		return 0;               /* return # of splits */
     } else {
 	*sumrisk = left_risk + right_risk;
 	return left_split + right_split + 1;

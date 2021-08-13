@@ -41,7 +41,7 @@ Rpartexp2(int n, double *y, double eps, int *keep)
 }
 
 SEXP
-rpartexp2(SEXP dtimes, SEXP eps)
+C_rpartexp2(SEXP dtimes, SEXP eps)
 {
     int n = LENGTH(dtimes);
     SEXP keep = PROTECT(allocVector(INTSXP, n));

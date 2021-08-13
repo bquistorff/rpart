@@ -7,7 +7,7 @@
 
 pNode branch(pNode tree, int obs);
 
-void bsplit(pNode me, int n1, int n2);
+void bsplit(pNode me, int n1, int n2, int n1_te, int n2_te);
 
 void choose_surg(int n1, int n2, int *y, double *x, int *order,
 		 int ncat, double *agreement, double *split, int *csplit,
@@ -30,14 +30,14 @@ CpTable make_cp_table(pNode me, double parent, int nsplit);
 
 void mysort(int start, int stop, double *x, int *cvec);
 
-void nodesplit(pNode me, int nodenum, int n1, int n2, int *nleft, int *nright);
+void nodesplit(pNode me, int nodenum, int n1, int n2, int n1_te, int n2_te, int *nnleft, int *nnright, int *nnleft_te, int *nnright_te);
 
-int partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2);
+int partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2, int n1_te, int n2_te);
 
 int print_tree(pNode me, int maxdepth);
 
-SEXP rpart(SEXP ncat2, SEXP method2, SEXP opt2, SEXP parms2, SEXP ymat2,
-	   SEXP xmat2, SEXP xvals2, SEXP xgrp2, SEXP wt2, SEXP ny2, SEXP cost2);
+SEXP C_rpart(SEXP ncat2, SEXP method2, SEXP opt2, SEXP parms2, SEXP ymat2,
+	   SEXP xmat2, SEXP xmat2_te, SEXP xvals2, SEXP xgrp2, SEXP wt2, SEXP ny2, SEXP cost2);
 
 void rpart_callback0(int *nr);
 void rpart_callback1(int n, double *y[], double *wt, double *z);
@@ -54,9 +54,9 @@ void rundown2(pNode tree, int obs, double *cp, double *xpred, int nresp);
 
 void surrogate(pNode me, int n1, int n2);
 
-SEXP xpred(SEXP ncat2, SEXP method2, SEXP opt2, SEXP parms2, SEXP xvals2,
+SEXP C_xpred(SEXP ncat2, SEXP method2, SEXP opt2, SEXP parms2, SEXP xvals2,
 	   SEXP xgrp2, SEXP ymat2, SEXP xmat2, SEXP wt2, SEXP ny2,
 	   SEXP cost2, SEXP all2, SEXP cp2, SEXP toprisk2, SEXP nresp2);
 
 void xval(int n_xval, CpTable cptable_head, int *x_grp, int maxcat,
-	  char **error, double *parms, int *savesort);
+	  char **error, double *parms, int *savesort, int *savesort_te);

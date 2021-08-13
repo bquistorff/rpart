@@ -1,5 +1,4 @@
-Package: rpart
-Priority: recommended
+Package: rpart2
 Version: 4.1-16
 Date: 2019-05-21
 Authors@R: c(person("Terry", "Therneau", role = "aut",
@@ -27,3 +26,4 @@ Maintainer: Beth Atkinson <atkinson@mayo.edu>
 Repository: CRAN
 URL: https://github.com/bethatkinson/rpart, https://cran.r-project.org/package=rpart
 BugReports: https://github.com/bethatkinson/rpart/issues
+RoxygenNote: 7.1.1

@@ -2,21 +2,25 @@
 #  The recursive partitioning function, for R
 #
 rpart <-
-    function(formula, data, weights, subset, na.action = na.rpart, method,
-             model = FALSE, x = FALSE, y = TRUE, parms, control, cost, ...)
+    function(formula, data, data_te, weights, na.action = na.rpart, method,
+             x = FALSE, y = TRUE, parms, control, cost, ...)
 {
+    model = FALSE
     Call <- match.call()
     if (is.data.frame(model)) {
         m <- model
         model <- FALSE
     } else {
-        indx <- match(c("formula", "data", "weights", "subset"),
+        indx <- match(c("formula", "data", "weights"),
                       names(Call), nomatch = 0L)
         if (indx[1] == 0L) stop("a 'formula' argument is required")
         temp <- Call[c(1L, indx)]      # only keep the arguments we wanted
         temp$na.action <- na.action    # This one has a default
         temp[[1L]] <- quote(stats::model.frame) # change the function called
         m <- eval.parent(temp)
+
+        #probably not quite as nice.
+        m_te <- stats::model.frame(formula(delete.response(terms(formula))), data=data_te, na.action=na.action)
     }
 
     Terms <- attr(m, "terms")
@@ -29,8 +33,11 @@ rpart <-
     if (!length(wt)) wt <- rep(1, nrow(m))
     offset <- model.offset(m)
     X <- rpart.matrix(m)
+    X_te <- rpart.matrix(m_te)
     nobs <- nrow(X)
+    #nobs2 <- nrow(X2)
     nvar <- ncol(X)
+    if(nvar!=ncol(X_te)) stop("X1 and X2 need the same # of variables.")
 
     if (missing(method)) {
 	method <- if (is.factor(Y) || is.character(Y)) "class"
@@ -40,6 +47,7 @@ rpart <-
     }
 
     if (is.list(method)) {
+        stop("user methods not allowed")
         ## User-written split methods
 	mlist <- method
 	method <- "user"
@@ -57,6 +65,7 @@ rpart <-
     } else {
 	method.int <- pmatch(method, c("anova", "poisson", "class", "exp"))
 	if (is.na(method.int)) stop("Invalid method")
+    if(method.int!=1) stop("Only anova method supported")
 	method <- c("anova", "poisson", "class", "exp")[method.int]
 	if (method.int == 4L) method.int <- 2L
 
@@ -71,7 +80,7 @@ rpart <-
             get(paste("rpart", method, sep = "."),
                 envir = environment())(Y, offset, parms, wt)
         ## avoid saving environment on fitted objects
-        ns <- asNamespace("rpart")
+        ns <- asNamespace("rpart2")
         if (!is.null(init$print)) environment(init$print) <- ns
         if (!is.null(init$summary)) environment(init$summary) <- ns
         if (!is.null(init$text)) environment(init$text) <- ns
@@ -147,10 +156,11 @@ rpart <-
     isord <- unlist(lapply(m[labs], tfun))
 
     storage.mode(X) <- "double"
+    storage.mode(X_te) <- "double"
     storage.mode(wt) <- "double"
     temp <- as.double(unlist(init$parms))
     if (!length(temp)) temp <- 0    # if parms is NULL pass a dummy
-    rpfit <- .Call(C_rpart,
+    rpfit <- .Call("C_rpart",
                    ncat = as.integer(cats * !isord),
                    method = as.integer(method.int),
                    as.double(unlist(controls)),
@@ -159,6 +169,7 @@ rpart <-
                    as.integer(xgroups),
                    as.double(t(init$y)),
                    X,
+                   X_te,
                    wt,
                    as.integer(init$numy),
                    as.double(cost))

@@ -1,5 +1,5 @@
 rpart.control <-
-  function(minsplit = 20L, minbucket = round(minsplit/3), cp = 0.01,
+  function(minsplit = 20L, minbucket = round(minsplit/3), minsplit_te = minsplit, minbucket_te = minbucket, cp = 0.01,
 	   maxcompete = 4L, maxsurrogate = 5L, usesurrogate = 2L, xval = 10L,
 	   surrogatestyle = 0L, maxdepth = 30L, ...)
 {
@@ -15,6 +15,7 @@ rpart.control <-
     if (maxdepth > 30L) stop("Maximum depth is 30")
     if (maxdepth < 1L)  stop("Maximum depth must be at least 1")
     if (missing(minsplit) && !missing(minbucket)) minsplit <- minbucket * 3L
+    if (missing(minsplit_te) && !missing(minbucket_te)) minsplit_te <- minbucket_te * 3L
     if ((usesurrogate < 0L) || (usesurrogate > 2L)) {
         warning("The value of 'usesurrogate' supplied was out of range, the default value of 2 is used instead.")
         usesurrogate <- 2L
@@ -23,11 +24,15 @@ rpart.control <-
         warning("The value of 'surrogatestyle' supplied was out of range, the default value of 0 is used instead.")
         surrogatestyle <- 0L
     }
+    if (maxsurrogate>0L) {
+        warning("Surrogates not supported.")
+        maxsurrogate <- 0L
+    }
 
     ## Because xval can be of length either 1 or n, and the C code
     ##   refers to parameters by number, i.e., "opt[5]" in rpart.c,
     ##   the xval parameter should always be last on the list.
-    list(minsplit = minsplit, minbucket = minbucket, cp = cp,
+    list(minsplit = minsplit, minbucket = minbucket, minsplit_te = minsplit_te, minbucket_te = minbucket_te, cp = cp,
          maxcompete = maxcompete, maxsurrogate = maxsurrogate,
          usesurrogate = usesurrogate,
          surrogatestyle = surrogatestyle, maxdepth = maxdepth, xval = xval)

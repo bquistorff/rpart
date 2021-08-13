@@ -14,22 +14,109 @@
 #include "rpartproto.h"
 #include <stdio.h>
 
+
+
 void
-nodesplit(pNode me, int nodenum, int n1, int n2, int *nnleft, int *nnright)
+reassign_which(pSplit tsplit, int leftson, int n1, int n2, int **sorts, int pvar, double **xdata, 
+							 int* psomeleft, int*pnleft, int*pnright, int*which) {
+	int i, j, k;
+	double psplit;
+	int extra;
+	psplit = tsplit->spoint;        /* value of split point */
+	extra = tsplit->csplit[0];
+	for (i = n1; i < n2; i++) {
+		j = sorts[pvar][i];
+		if (j < 0)
+			(*psomeleft)++;
+		else {
+			if (xdata[pvar][j] < psplit)
+				k = extra;
+			else
+				k = -extra;
+			if (k == LEFT) {
+				which[j] = leftson;
+				(*pnleft)++;
+			} else {
+				which[j] = leftson + 1;
+				(*pnright)++;
+			}
+		}
+	}
+}
+
+void
+unmerge(int n1, int n2, int nleft, int nright, int leftson, int rightson, int **rp_sorts, int *which) {
+  int *sindex;                /* sindex[i] is a shorthand for sorts[var][i] */
+	int i1, i2, i3, k, i, j;
+    /*
+     * Last part of the work is to update the sorts matrix
+     *
+     * Say that n1=5, n2=12, 4 go left, 3 go right, and one obs
+     *   stays home, and the data looks like this:
+     *
+     *   sorts[var][5] = 17    which[17]= 17 = 2*nodenum +1 = rightson
+     *       "            4    which[4] = 16 = 2*nodenum    = leftson
+     *                   21          21   16
+     *                    6           6   17
+     *      "	     	  7           7   16
+     *                   30          30   17
+     *                    8           8   16
+     *	sorts[var][12]=	-11    which[11] = 8 = nodenum  (X = missing)
+     *
+     *  Now, every one of the rows of the sorts contains these same
+     *    elements -- 4,6,7,8,11,17,21,30 -- in some order, which
+     *    represents both how they are sorted and any missings via
+     *    negative numbers.
+     *  We need to reorder this as {{goes left}, {goes right}, {stays
+     *    here}}, preserving order within the first two groups.  The
+     *    order within the "stay here" group doesn't matter since they
+     *    won't be looked at again for splitting.
+     *  So the result in this case should be
+     *       4, 21, 7, 8,   17, 6, 30,  -11
+     *  The algorithm is the opposite of a merge sort.
+     *
+     *  Footnote: if no surrogate variables were used, then one could
+     *   skip this process for the primary split variable, as that
+     *   portion of "sorts" would remain unchanged.  It's not worth
+     *   the bother of checking, however.
+     */
+    for (k = 0; k < rp.nvar; k++) {
+		sindex = rp_sorts[k];   /* point to variable k */
+		i1 = n1;
+		i2 = i1 + nleft;
+		i3 = i2 + nright;
+		for (i = n1; i < n2; i++) {
+			j = sindex[i];
+			if (j < 0)
+				j = -(j + 1);
+			if (which[j] == leftson)
+				sindex[i1++] = sindex[i];
+			else {
+				if (which[j] == rightson)
+					rp.tempvec[i2++] = sindex[i];
+				else
+					rp.tempvec[i3++] = sindex[i];       /* went nowhere */
+			}
+		}
+		for (i = n1 + nleft; i < n2; i++)
+			sindex[i] = rp.tempvec[i];
+    }
+} 
+
+void
+nodesplit(pNode me, int nodenum, int n1, int n2, int n1_te, int n2_te, int *nnleft, int *nnright, int *nnleft_te, int *nnright_te)
 {
     int i, j, k;
     pSplit tsplit;
-    int var, extra, lastisleft, someleft;
-    int i1, i2, i3;
+    int var, extra, lastisleft, someleft, someleft_te;
     int leftson, rightson;
     int pvar;
     double psplit;
     int *index;
     int *which;
     int **sorts;
-    int *sindex;                /* sindex[i] is a shorthand for sorts[var][i] */
     double **xdata;
-    int nleft, nright;
+    int nleft, nright, nleft_te, nright_te;
     //int           dummy;      /* debugging */
 
     which = rp.which;
@@ -45,48 +132,49 @@ nodesplit(pNode me, int nodenum, int n1, int n2, int *nnleft, int *nnright)
     tsplit = me->primary;
     pvar = tsplit->var_num;     /* primary variable */
     someleft = 0;
+	someleft_te = 0;
     nleft = 0;
+	nleft_te = 0;
     nright = 0;
+	nright_te = 0;
 
     if (rp.numcat[pvar] > 0) {  /* categorical primary variable */
-	index = tsplit->csplit;
-	for (i = n1; i < n2; i++) {
-	    j = sorts[pvar][i];
-	    if (j < 0)
-		someleft++;     /* missing value */
-	    else
-		switch (index[(int) xdata[pvar][j] - 1]) {
-		case LEFT:
-		    which[j] = leftson;
-		    nleft++;
-		    break;
-		case RIGHT:
-		    which[j] = leftson + 1;
-		    nright++;
-		    break;
+		index = tsplit->csplit;
+		for (i = n1; i < n2; i++) {
+			j = sorts[pvar][i];
+			if (j < 0)
+				someleft++;     /* missing value */
+			else
+				switch (index[(int) xdata[pvar][j] - 1]) {
+				case LEFT:
+					which[j] = leftson;
+					nleft++;
+					break;
+				case RIGHT:
+					which[j] = leftson + 1;
+					nright++;
+					break;
+				}
 		}
-	}
+		for (i = n1_te; i < n2_te; i++) {
+			j = rp.sorts_te[pvar][i];
+			if (j < 0)
+				someleft_te++;     /* missing value */
+			else
+				switch (index[(int) rp.xdata_te[pvar][j] - 1]) {
+				case LEFT:
+					rp.which_te[j] = leftson;
+					nleft_te++;
+					break;
+				case RIGHT:
+					rp.which_te[j] = leftson + 1;
+					nright_te++;
+					break;
+				}
+		}
     } else {
-	psplit = tsplit->spoint;        /* value of split point */
-	extra = tsplit->csplit[0];
-	for (i = n1; i < n2; i++) {
-	    j = sorts[pvar][i];
-	    if (j < 0)
-		someleft++;
-	    else {
-		if (xdata[pvar][j] < psplit)
-		    k = extra;
-		else
-		    k = -extra;
-		if (k == LEFT) {
-		    which[j] = leftson;
-		    nleft++;
-		} else {
-		    which[j] = leftson + 1;
-		    nright++;
-		}
-	    }
-	}
+		reassign_which(tsplit, leftson, n1, n2, sorts, pvar, xdata, &someleft, &nleft, &nright, which);
+		reassign_which(tsplit, leftson, n1_te, n2_te, rp.sorts_te, pvar, rp.xdata_te, &someleft_te, &nleft_te, &nright_te, rp.which_te);
     }
 
     /*
@@ -182,60 +270,12 @@ nodesplit(pNode me, int nodenum, int n1, int n2, int *nnleft, int *nnright)
 	    }
 	}
     }
-    /*
-     * Last part of the work is to update the sorts matrix
-     *
-     * Say that n1=5, n2=12, 4 go left, 3 go right, and one obs
-     *   stays home, and the data looks like this:
-     *
-     *   sorts[var][5] = 17    which[17]= 17 = 2*nodenum +1 = rightson
-     *       "            4    which[4] = 16 = 2*nodenum    = leftson
-     *                   21          21   16
-     *                    6           6   17
-     *      "		  7           7   16
-     *                   30          30   17
-     *                    8           8   16
-     *	sorts[var][12]=	-11    which[11] = 8 = nodenum  (X = missing)
-     *
-     *  Now, every one of the rows of the sorts contains these same
-     *    elements -- 4,6,7,8,11,17,21,30 -- in some order, which
-     *    represents both how they are sorted and any missings via
-     *    negative numbers.
-     *  We need to reorder this as {{goes left}, {goes right}, {stays
-     *    here}}, preserving order within the first two groups.  The
-     *    order within the "stay here" group doesn't matter since they
-     *    won't be looked at again for splitting.
-     *  So the result in this case should be
-     *       4, 21, 7, 8,   17, 6, 30,  -11
-     *  The algorithm is the opposite of a merge sort.
-     *
-     *  Footnote: if no surrogate variables were used, then one could
-     *   skip this process for the primary split variable, as that
-     *   portion of "sorts" would remain unchanged.  It's not worth
-     *   the bother of checking, however.
-     */
-    for (k = 0; k < rp.nvar; k++) {
-	sindex = rp.sorts[k];   /* point to variable k */
-	i1 = n1;
-	i2 = i1 + nleft;
-	i3 = i2 + nright;
-	for (i = n1; i < n2; i++) {
-	    j = sindex[i];
-	    if (j < 0)
-		j = -(j + 1);
-	    if (which[j] == leftson)
-		sindex[i1++] = sindex[i];
-	    else {
-		if (which[j] == rightson)
-		    rp.tempvec[i2++] = sindex[i];
-		else
-		    rp.tempvec[i3++] = sindex[i];       /* went nowhere */
-	    }
-	}
-	for (i = n1 + nleft; i < n2; i++)
-	    sindex[i] = rp.tempvec[i];
-    }
+
+	unmerge(n1, n2, nleft, nright, leftson, rightson, rp.sorts, rp.which); 
+	unmerge(n1_te, n2_te, nleft_te, nright_te, leftson, rightson, rp.sorts_te, rp.which_te);
 
     *nnleft = nleft;
     *nnright = nright;
+    *nnleft_te = nleft_te;
+    *nnright_te = nright_te;
 }

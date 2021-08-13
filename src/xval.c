@@ -35,7 +35,7 @@ static int debug = 0;           /*if it is odd, print out every tree */
 
 void
 xval(int n_xval, CpTable cptable_head, int *x_grp,
-     int maxcat, char **errmsg, double *parms, int *savesort)
+     int maxcat, char **errmsg, double *parms, int *savesort, int *savesort_te)
 {
     int i, j, k, ii, jj;
     int last;
@@ -79,92 +79,108 @@ xval(int n_xval, CpTable cptable_head, int *x_grp,
     k = 0;                      /* -Wall */
     for (xgroup = 0; xgroup < n_xval; xgroup++) {
        /*
-	* restore rp.sorts, with the data for this run at the top
-	* this requires one pass per variable
-	*/
-	for (j = 0; j < rp.nvar; j++) {
-	    k = 0;
-	    for (i = 0; i < rp.n; i++) {
-		ii = savesort[j * rp.n + i];
-		if (ii < 0)
-		    ii = -(1 + ii);     /* missings move too */
-		if (x_grp[ii] != xgroup + 1) {
-		   /*
-		    * this obs is left in --
-		    *  copy to the front half of rp.sorts
-		    */
-		    rp.sorts[j][k] = savesort[j * rp.n + i];
-		    k++;
+		* restore rp.sorts, with the data for this run at the top
+		* this requires one pass per variable
+		*/
+		for (j = 0; j < rp.nvar; j++) {
+			k = 0;
+			for (i = 0; i < rp.n_te; i++) {
+				ii = savesort_te[j * rp.n_te + i];
+				if (ii < 0)
+					ii = -(1 + ii);     /* missings move too */
+				/*
+					* this obs is left in --
+					*  copy to the front half of rp.sorts
+					*/
+				rp.sorts_te[j][k] = savesort_te[j * rp.n_te + i];
+				k++;
+			}
+			k = 0;
+			for (i = 0; i < rp.n; i++) {
+				ii = savesort[j * rp.n + i];
+				if (ii < 0)
+					ii = -(1 + ii);     /* missings move too */
+				if (x_grp[ii] != xgroup + 1) {
+				/*
+					* this obs is left in --
+					*  copy to the front half of rp.sorts
+					*/
+					rp.sorts[j][k] = savesort[j * rp.n + i];
+					k++;
+				}
+			}
 		}
-	    }
-	}
 
-       /*
-	*  Fix up the y vector, and save a list of "left out" obs *   in
-	* the tail, unused end of rp.sorts[0][i];
-	*/
-	last = k;
-	k = 0;
-	temp = 0;
-	for (i = 0; i < rp.n; i++) {
-	    rp.which[i] = 1;    /* everyone starts in group 1 */
-	    if (x_grp[i] == xgroup + 1) {
-		rp.sorts[0][last] = i;
-		last++;
-	    } else {
-		rp.ytemp[k] = rp.ydata[i];
-		rp.wtemp[k] = rp.wt[i];
-		temp += rp.wt[i];
-		k++;
-	    }
-	}
+		/*
+		*  Fix up the y vector, and save a list of "left out" obs *   in
+		* the tail, unused end of rp.sorts[0][i];
+		*/
+		last = k;
+		k = 0;
+		temp = 0;
+		for (i = 0; i < rp.n; i++) {
+			rp.which[i] = 1;    /* everyone starts in group 1 */
+			if (x_grp[i] == xgroup + 1) {
+				rp.sorts[0][last] = i;
+				last++;
+			} else {
+				rp.ytemp[k] = rp.ydata[i];
+				rp.wtemp[k] = rp.wt[i];
+				temp += rp.wt[i];
+				k++;
+			}
+		}
+		for (i = 0; i < rp.n_te; i++) {
+			rp.which_te[i] = 1;    /* everyone starts in group 1 */
+		}
 
-       /* at this point k = #obs in the xval group */
-       /* rescale the cp */
-	for (j = 0; j < rp.num_unique_cp; j++)
-	    cp[j] *= temp / old_wt;
-	rp.alpha *= temp / old_wt;
-	old_wt = temp;
+		/* at this point k = #obs in the xval group */
+		/* rescale the cp */
+		for (j = 0; j < rp.num_unique_cp; j++)
+			cp[j] *= temp / old_wt;
+		rp.alpha *= temp / old_wt;
+		old_wt = temp;
 
 
-       /*
-	* partition the new tree
-	*/
-	xtree = (pNode) CALLOC(1, nodesize);
-	xtree->num_obs = k;
-	(*rp_init) (k, rp.ytemp, maxcat, errmsg, parms, &temp, 2, rp.wtemp);
-	(*rp_eval) (k, rp.ytemp, xtree->response_est, &(xtree->risk), rp.wtemp);
-	xtree->complexity = xtree->risk;
-	partition(1, xtree, &temp, 0, k);
-	fix_cp(xtree, xtree->complexity);
+		/*
+		* partition the new tree
+		*/
+		xtree = (pNode) CALLOC(1, nodesize);
+		xtree->num_obs = k;
+		xtree->num_obs_te = rp.n_te;
+		(*rp_init) (k, rp.ytemp, maxcat, errmsg, parms, &temp, 2, rp.wtemp);
+		(*rp_eval) (k, rp.ytemp, xtree->response_est, &(xtree->risk), rp.wtemp);
+		xtree->complexity = xtree->risk;
+		partition(1, xtree, &temp, 0, k, 0, rp.n_te);
+		fix_cp(xtree, xtree->complexity);
 
-       /*
-	* run the extra data down the new tree
-	*/
-	for (i = k; i < rp.n; i++) {
-	    j = rp.sorts[0][i];
-	    rundown(xtree, j, cp, xpred, xtemp);
-#if DEBUG > 1
-	    if (debug > 1) {
-		jj = j + 1;
-		Rprintf("\nObs %d, y=%f \n", jj, rp.ydata[j][0]);
-	    }
-#endif
-	   /* add it in to the risk */
-	    cplist = cptable_head;
-	    for (jj = 0; jj < rp.num_unique_cp; jj++) {
-		cplist->xrisk += xtemp[jj] * rp.wt[j];
-		cplist->xstd += xtemp[jj] * xtemp[jj] * rp.wt[j];
-#if DEBUG > 1
-		if (debug > 1)
-		    Rprintf("  cp=%f, pred=%f, xtemp=%f\n",
-			    cp[jj] / old_wt, xpred[jj], xtemp[jj]);
-#endif
-		cplist = cplist->forward;
-	    }
-	}
-	free_tree(xtree, 1);    // Calloc-ed
-	R_CheckUserInterrupt();
+		/*
+		* run the extra data down the new tree
+		*/
+		for (i = k; i < rp.n; i++) {
+			j = rp.sorts[0][i];
+			rundown(xtree, j, cp, xpred, xtemp);
+	#if DEBUG > 1
+			if (debug > 1) {
+			jj = j + 1;
+			Rprintf("\nObs %d, y=%f \n", jj, rp.ydata[j][0]);
+			}
+	#endif
+		/* add it in to the risk */
+			cplist = cptable_head;
+			for (jj = 0; jj < rp.num_unique_cp; jj++) {
+			cplist->xrisk += xtemp[jj] * rp.wt[j];
+			cplist->xstd += xtemp[jj] * xtemp[jj] * rp.wt[j];
+	#if DEBUG > 1
+			if (debug > 1)
+				Rprintf("  cp=%f, pred=%f, xtemp=%f\n",
+					cp[jj] / old_wt, xpred[jj], xtemp[jj]);
+	#endif
+			cplist = cplist->forward;
+			}
+		}
+		free_tree(xtree, 1);    // Calloc-ed
+		R_CheckUserInterrupt();
     }
 
     for (cplist = cptable_head; cplist; cplist = cplist->forward) {

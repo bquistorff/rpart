@@ -131,7 +131,7 @@ next:
 #include <Rinternals.h>
 
 SEXP
-pred_rpart(SEXP dimx, SEXP nnode, SEXP nsplit, SEXP dimc,
+C_pred_rpart(SEXP dimx, SEXP nnode, SEXP nsplit, SEXP dimc,
 	   SEXP nnum, SEXP nodes2, SEXP vnum, SEXP split2,
 	   SEXP csplit2, SEXP usesur, SEXP xdata2, SEXP xmiss2)
 {

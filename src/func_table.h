@@ -28,8 +28,8 @@ extern void ginidev(int n, double *y[], double *value, double *risk,
 extern void usersplit_eval(int n, double *y[], double *value, double *risk,
 			   double *wt);
 
-extern void anova(int n, double *y[], double *x, int nclass,
-		  int edge, double *improve, double *split, int *csplit,
+extern void anova(int n, int n_te, double *y[], double *x, double *x_te, int nclass,
+		  int edge, int edge_te, double *improve, double *split, int *csplit,
 		  double myrisk, double *wt);
 extern void poisson(int n, double *y[], double *x, int nclass,
 		    int edge, double *improve, double *split, int *csplit,

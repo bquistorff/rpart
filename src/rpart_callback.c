@@ -33,7 +33,7 @@ static int *ndata;              /* pointer to the data portion of nback */
  *   and away the memory location of the 4 "callback" objects.
  */
 SEXP
-init_rpcallback(SEXP rhox, SEXP ny, SEXP nr, SEXP expr1x, SEXP expr2x)
+C_init_rpcallback(SEXP rhox, SEXP ny, SEXP nr, SEXP expr1x, SEXP expr2x)
 {
     SEXP stemp;
 

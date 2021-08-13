@@ -31,7 +31,7 @@
 #include "rpartproto.h"
 
 SEXP
-xpred(SEXP ncat2, SEXP method2, SEXP opt2,
+C_xpred(SEXP ncat2, SEXP method2, SEXP opt2,
       SEXP parms2, SEXP xvals2, SEXP xgrp2,
       SEXP ymat2, SEXP xmat2, SEXP wt2,
       SEXP ny2, SEXP cost2, SEXP all2, SEXP cp2, SEXP toprisk2, SEXP nresp2)
@@ -94,6 +94,8 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
     dptr = REAL(opt2);
     rp.min_node = (int) dptr[1];
     rp.min_split = (int) dptr[0];
+    rp.min_node_te = rp.min_node;
+    rp.min_split_te = rp.min_split;
     rp.complexity = dptr[2];
     rp.maxpri = (int) dptr[3] + 1;      /* max primary splits = max
 					 * competitors + 1 */
@@ -104,6 +106,7 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
     rp.sur_agree = (int) dptr[6];
     rp.maxnode = (int) pow((double) 2.0, (double) dptr[7]) - 1;
     rp.n = nrows(xmat2);
+    rp.n_te = rp.n;
     n = rp.n;                   /* I get tired of typing "rp.n" 100 times
 				 * below */
     rp.nvar = ncols(xmat2);
@@ -120,9 +123,11 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
      */
     dptr = REAL(xmat2);
     rp.xdata = (double **) ALLOC(rp.nvar, sizeof(double *));
+    rp.xdata_te = (double **) ALLOC(rp.nvar, sizeof(double *));
     for (i = 0; i < rp.nvar; i++) {
-	rp.xdata[i] = dptr;
-	dptr += n;
+        rp.xdata[i] = dptr;
+        rp.xdata_te[i] = dptr;
+        dptr += n;
     }
     rp.ydata = (double **) ALLOC(n, sizeof(double *));
 
@@ -136,6 +141,7 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
      */
     rp.tempvec = (int *) ALLOC(n, sizeof(int));
     rp.xtemp = (double *) ALLOC(n, sizeof(double));
+    rp.xtemp_te = (double *) ALLOC(n, sizeof(double));
     rp.ytemp = (double **) ALLOC(n, sizeof(double *));
     rp.wtemp = (double *) ALLOC(n, sizeof(double));
 
@@ -145,6 +151,7 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
      * I don't have to sort the categoricals.
      */
     rp.sorts = (int **) ALLOC(rp.nvar, sizeof(int *));
+    rp.sorts_te = (int **) ALLOC(rp.nvar, sizeof(int *));
     rp.sorts[0] = (int *) ALLOC(n * rp.nvar, sizeof(int));
     maxcat = 0;
     for (i = 0; i < rp.nvar; i++) {
@@ -165,6 +172,8 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
 	for (k = 0; k < n; k++)
 	    rp.sorts[i][k] = rp.tempvec[k];
     }
+    memcpy(rp.sorts_te[0], rp.sorts[0], n * rp.nvar * sizeof(int));
+    memcpy(rp.xtemp_te, rp.xtemp, n * sizeof(double));
 
     /*
      * save away a copy of the rp.sorts
@@ -189,6 +198,7 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
      */
 
     rp.which = (int *) ALLOC(n, sizeof(int));
+    rp.which_te = (int *) ALLOC(n, sizeof(int));
     xtree = (pNode) ALLOC(1, nodesize);
     (*rp_init) (n, rp.ydata, maxcat, &errmsg, parms, &rp.num_resp, 1, wt);
 
@@ -224,6 +234,18 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
 	 * this requires one pass per variable
 	 */
 	for (j = 0; j < rp.nvar; j++) {
+        k = 0;
+        for (i = 0; i < rp.n_te; i++) {
+            ii = savesort[j * rp.n_te + i];
+            if (ii < 0)
+                ii = -(1 + ii);     /* missings move too */
+            /*
+                * this obs is left in --
+                *  copy to the front half of rp.sorts
+                */
+            rp.sorts_te[j][k] = savesort[j * rp.n_te + i];
+            k++;
+        }
 	    k = 0;
 	    for (i = 0; i < rp.n; i++) {
 		ii = savesort[j * n + i];       /* walk through the variables
@@ -275,7 +297,7 @@ xpred(SEXP ncat2, SEXP method2, SEXP opt2,
 	(*rp_init) (k, rp.ytemp, maxcat, &errmsg, parms, &ii, 2, rp.wtemp);
 	(*rp_eval) (k, rp.ytemp, xtree->response_est, &(xtree->risk), rp.wtemp);
 	xtree->complexity = xtree->risk;
-	partition(1, xtree, &temp, 0, k);
+	partition(1, xtree, &temp, 0, k, 0, k);
 	fix_cp(xtree, xtree->complexity);
 
 	//print_tree(xtree, 1, 0, 0, 0);        /* debug line */

@@ -37,10 +37,47 @@
 #include "func_table.h"
 #include "rpartproto.h"
 
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
+
+int** 
+create_sort(int n, int *ncat, double** xdata, double *xtemp, int *pmaxcat) {
+    int maxcat, i, k;
+    int **sorts;
+    /*
+     * create a matrix of sort indices, one for each continuous variable
+     *   This sort is "once and for all".
+     * I don't have to sort the categoricals.
+     */
+    sorts = (int **) ALLOC(rp.nvar, sizeof(int *));
+    sorts[0] = (int *) ALLOC(n * rp.nvar, sizeof(int));
+    maxcat = 0;
+    for (i = 0; i < rp.nvar; i++) {
+	sorts[i] = sorts[0] + i * n;
+	for (k = 0; k < n; k++) {
+	    if (!R_FINITE(xdata[i][k])) {
+		rp.tempvec[k] = -(k + 1);       /* this variable is missing */
+		xtemp[k] = 0;        /* avoid weird numerics in S's NA */
+	    } else {
+		rp.tempvec[k] = k;
+		xtemp[k] = xdata[i][k];
+	    }
+	}
+	if (ncat[i] == 0)
+	    mysort(0, n - 1, xtemp, rp.tempvec);
+	else if (ncat[i] > maxcat)
+	    maxcat = ncat[i];
+	for (k = 0; k < n; k++)
+	    sorts[i][k] = rp.tempvec[k];
+    }
+    (*pmaxcat) = maxcat;
+    return(sorts);
+}
+
 SEXP
-rpart(SEXP ncat2, SEXP method2, SEXP opt2,
+C_rpart(SEXP ncat2, SEXP method2, SEXP opt2,
       SEXP parms2, SEXP xvals2, SEXP xgrp2,
-      SEXP ymat2, SEXP xmat2, SEXP wt2, SEXP ny2, SEXP cost2)
+      SEXP ymat2, SEXP xmat2, SEXP xmat2_te, SEXP wt2, SEXP ny2, SEXP cost2)
 {
 
     pNode tree;          /* top node of the tree */
@@ -49,6 +86,7 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     int maxcat;
     double temp;
     int *savesort = NULL /* -Wall */ ;
+    int *savesort_te = NULL /* -Wall */ ;
     double *dptr;               /* temp */
     int *iptr;
     /*
@@ -96,16 +134,19 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     dptr = REAL(opt2);
     rp.min_node = (int) dptr[1];
     rp.min_split = (int) dptr[0];
-    rp.complexity = dptr[2];
-    rp.maxpri = (int) dptr[3] + 1;      /* max primary splits =
+    rp.min_node_te = (int) dptr[3];
+    rp.min_split_te = (int) dptr[2];
+    rp.complexity = dptr[4];
+    rp.maxpri = (int) dptr[5] + 1;      /* max primary splits =
 					   max competitors + 1 */
     if (rp.maxpri < 1)
 	rp.maxpri = 1;
-    rp.maxsur = (int) dptr[4];
-    rp.usesurrogate = (int) dptr[5];
-    rp.sur_agree = (int) dptr[6];
-    rp.maxnode = (int) pow((double) 2.0, (double) dptr[7]) - 1;
+    rp.maxsur = (int) dptr[6];
+    rp.usesurrogate = (int) dptr[7];
+    rp.sur_agree = (int) dptr[8];
+    rp.maxnode = (int) pow((double) 2.0, (double) dptr[9]) - 1;
     rp.n = nrows(xmat2);
+    rp.n_te = nrows(xmat2_te);
     n = rp.n;                   /* I get tired of typing "rp.n" 100 times
 				 * below */
     rp.nvar = ncols(xmat2);
@@ -125,6 +166,15 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
 	rp.xdata[i] = dptr;
 	dptr += n;
     }
+
+    dptr = REAL(xmat2_te);
+    rp.xdata_te = (double **) ALLOC(rp.nvar, sizeof(double *));
+    for (i = 0; i < rp.nvar; i++) {
+	rp.xdata_te[i] = dptr;
+	dptr += rp.n_te;
+    }
+
+
     rp.ydata = (double **) ALLOC(n, sizeof(double *));
 
     dptr = REAL(ymat2);
@@ -135,44 +185,21 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     /*
      * allocate some scratch
      */
-    rp.tempvec = (int *) ALLOC(n, sizeof(int));
+    rp.tempvec = (int *) ALLOC(MAX(n, rp.n_te), sizeof(int));
     rp.xtemp = (double *) ALLOC(n, sizeof(double));
+    rp.xtemp_te = (double *) ALLOC(rp.n_te, sizeof(double));
     rp.ytemp = (double **) ALLOC(n, sizeof(double *));
     rp.wtemp = (double *) ALLOC(n, sizeof(double));
-
-    /*
-     * create a matrix of sort indices, one for each continuous variable
-     *   This sort is "once and for all".
-     * I don't have to sort the categoricals.
-     */
-    rp.sorts = (int **) ALLOC(rp.nvar, sizeof(int *));
-    rp.sorts[0] = (int *) ALLOC(n * rp.nvar, sizeof(int));
-    maxcat = 0;
-    for (i = 0; i < rp.nvar; i++) {
-	rp.sorts[i] = rp.sorts[0] + i * n;
-	for (k = 0; k < n; k++) {
-	    if (!R_FINITE(rp.xdata[i][k])) {
-		rp.tempvec[k] = -(k + 1);       /* this variable is missing */
-		rp.xtemp[k] = 0;        /* avoid weird numerics in S's NA */
-	    } else {
-		rp.tempvec[k] = k;
-		rp.xtemp[k] = rp.xdata[i][k];
-	    }
-	}
-	if (ncat[i] == 0)
-	    mysort(0, n - 1, rp.xtemp, rp.tempvec);
-	else if (ncat[i] > maxcat)
-	    maxcat = ncat[i];
-	for (k = 0; k < n; k++)
-	    rp.sorts[i][k] = rp.tempvec[k];
-    }
-
+    rp.sorts_te = create_sort(rp.n_te, ncat, rp.xdata_te, rp.xtemp_te, &maxcat);
+    rp.sorts = create_sort(n, ncat, rp.xdata, rp.xtemp, &maxcat);
     /*
      * save away a copy of the rp.sorts, if needed for xval
      */
     if (xvals > 1) {
 	savesort = (int *) ALLOC(n * rp.nvar, sizeof(int));
 	memcpy(savesort, rp.sorts[0], n * rp.nvar * sizeof(int));
+	savesort_te = (int *) ALLOC(rp.n_te * rp.nvar, sizeof(int));
+	memcpy(savesort_te, rp.sorts_te[0], rp.n_te * rp.nvar * sizeof(int));
     }
 
     /*
@@ -193,10 +220,14 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     errmsg = _("unknown error");
     which3 = PROTECT(allocVector(INTSXP, n));
     rp.which = INTEGER(which3);
+    rp.which_te = (int *) ALLOC(rp.n_te, sizeof(int));
     temp = 0;
     for (i = 0; i < n; i++) {
-	rp.which[i] = 1;
-	temp += wt[i];
+        rp.which[i] = 1;
+        temp += wt[i];
+    }
+    for (i = 0; i < rp.n_te; i++) {
+        rp.which_te[i] = 1;
     }
     i = (*rp_init) (n, rp.ydata, maxcat, &errmsg, parms, &rp.num_resp, 1, wt);
     if (i > 0)
@@ -206,6 +237,7 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     tree = (pNode) ALLOC(1, nodesize);
     memset(tree, 0, nodesize);
     tree->num_obs = n;
+    tree->num_obs_te = rp.n_te;
     tree->sum_wt = temp;
 
     (*rp_eval) (n, rp.ydata, tree->response_est, &(tree->risk), wt);
@@ -215,7 +247,7 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     /*
      * Do the basic tree
      */
-    partition(1, tree, &temp, 0, n);
+    partition(1, tree, &temp, 0, n, 0, rp.n_te);
     CpTable cptable = (CpTable) ALLOC(1, sizeof(cpTable));
     cptable->cp = tree->complexity;
     cptable->risk = tree->risk;
@@ -229,7 +261,7 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
 	make_cp_list(tree, tree->complexity, cptable);
 	make_cp_table(tree, tree->complexity, 0);
 	if (xvals > 1) {
-	    xval(xvals, cptable, xgrp, maxcat, &errmsg, parms, savesort);
+	    xval(xvals, cptable, xgrp, maxcat, &errmsg, parms, savesort, savesort_te);
 	}
     }
     /*
@@ -311,15 +343,15 @@ rpart(SEXP ncat2, SEXP method2, SEXP opt2,
      *  tree building, and 'which' is not updated in that case
      */
     for (i = 0; i < n; i++) {
-	k = rp.which[i];
-	do {
-	    for (j = 0; j < nodecount; j++)
-		if (iinode[0][j] == k) {
-		    rp.which[i] = j + 1;
-		    break;
-		}
-	    k /= 2;
-	} while (j >= nodecount);
+        k = rp.which[i];
+        do {
+            for (j = 0; j < nodecount; j++)
+            if (iinode[0][j] == k) {
+                rp.which[i] = j + 1;
+                break;
+            }
+            k /= 2;
+        } while (j >= nodecount);
     }
 
     /* Create the output list */
