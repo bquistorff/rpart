@@ -20,7 +20,7 @@ rpart <-
         m <- eval.parent(temp)
 
         #probably not quite as nice.
-        m_te <- stats::model.frame(formula(delete.response(terms(formula))), data=data_te, na.action=na.action)
+        m_te <- stats::model.frame(formula(delete.response(terms(formula, data=data_te))), data=data_te, na.action=na.action)
     }
 
     Terms <- attr(m, "terms")
