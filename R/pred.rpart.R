@@ -13,7 +13,7 @@ pred.rpart <- function(fit, x)
     vnum <- match(rownames(fit$split), colnames(x))
     if (any(is.na(vnum)))
         stop("Tree has variables not found in new data")
-    temp <- .Call(C_pred_rpart,
+    temp <- .Call("C_pred_rpart",
                   as.integer(dim(x)),
                   as.integer(dim(frame)[1L]),
                   as.integer(dim(fit$splits)),

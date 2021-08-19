@@ -116,7 +116,7 @@ xpred.rpart <- function(fit, xval = 10L, cp, return.all = FALSE)
     storage.mode(wt) <- "double"
     temp <- as.double(unlist(parms))
     if (length(temp) == 0L) temp <- 0    # if NULL, pass a dummy
-    pred <- .Call(C_xpred,
+    pred <- .Call("C_xpred",
                   ncat = as.integer(cats * !fit$ordered),
                   method = as.integer(method.int),
                   as.double(unlist(controls)),

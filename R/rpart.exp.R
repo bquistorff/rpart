@@ -30,7 +30,7 @@ rpart.exp <- function(y, offset, parms, wt)
     ##   to roundoff error in creating the input data.  Ammalgamate such
     ##   intervals.  This turns out to be hard to do in S, but easy in C
     dtimes <- sort(unique(time[status == 1])) # unique death times
-    temp <- .Call(C_rpartexp2, as.double(dtimes), as.double(.Machine$double.eps))
+    temp <- .Call("C_rpartexp2", as.double(dtimes), as.double(.Machine$double.eps))
     dtimes <- dtimes[temp == 1]
 
     ## For the sake of speed, restrict the number of intervals to be < 1000.
