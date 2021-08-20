@@ -99,7 +99,7 @@ C_rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     /*
      * Return objects for R -- end in "3" to avoid overlap with internal names
      */
-    SEXP which3, cptable3, dsplit3, isplit3, csplit3 = R_NilValue, /* -Wall */
+    SEXP which3, which3_te, cptable3, dsplit3, isplit3, csplit3 = R_NilValue, /* -Wall */
 	dnode3, inode3;
 
     /* work arrays for the return process */
@@ -220,12 +220,13 @@ C_rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     errmsg = _("unknown error");
     which3 = PROTECT(allocVector(INTSXP, n));
     rp.which = INTEGER(which3);
-    rp.which_te = (int *) ALLOC(rp.n_te, sizeof(int));
     temp = 0;
     for (i = 0; i < n; i++) {
         rp.which[i] = 1;
         temp += wt[i];
     }
+    which3_te = PROTECT(allocVector(INTSXP, rp.n_te));
+    rp.which_te = INTEGER(which3_te);
     for (i = 0; i < rp.n_te; i++) {
         rp.which_te[i] = 1;
     }
@@ -353,9 +354,20 @@ C_rpart(SEXP ncat2, SEXP method2, SEXP opt2,
             k /= 2;
         } while (j >= nodecount);
     }
+    for (i = 0; i < rp.n_te; i++) {
+        k = rp.which_te[i];
+        do {
+            for (j = 0; j < nodecount; j++)
+            if (iinode[0][j] == k) {
+                rp.which_te[i] = j + 1;
+                break;
+            }
+            k /= 2;
+        } while (j >= nodecount);
+    }
 
     /* Create the output list */
-    int nout = catcount > 0 ? 7 : 6;
+    int nout = catcount > 0 ? 8 : 7;
     SEXP rlist = PROTECT(allocVector(VECSXP, nout));
     SEXP rname = allocVector(STRSXP, nout);
     setAttrib(rlist, R_NamesSymbol, rname);
@@ -371,9 +383,11 @@ C_rpart(SEXP ncat2, SEXP method2, SEXP opt2,
     SET_STRING_ELT(rname, 4, mkChar("dnode"));
     SET_VECTOR_ELT(rlist, 5, inode3);
     SET_STRING_ELT(rname, 5, mkChar("inode"));
+    SET_VECTOR_ELT(rlist, 6, which3_te);
+    SET_STRING_ELT(rname, 6, mkChar("which_te"));
     if (catcount > 0) {
-	SET_VECTOR_ELT(rlist, 6, csplit3);
-	SET_STRING_ELT(rname, 6, mkChar("csplit"));
+	SET_VECTOR_ELT(rlist, 7, csplit3);
+	SET_STRING_ELT(rname, 7, mkChar("csplit"));
     }
 
     UNPROTECT(1 + nout);

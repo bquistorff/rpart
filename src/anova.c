@@ -109,7 +109,7 @@ anova(int n, int n_te, double *y[], double *x, double *x_te, int nclass,
 			if (x[i + 1] != x[i] && left_n >= edge) {
 				//See if enough in L/R of TE for split.
 				left_n_te = 0;
-				for (j=0; j<n_te; j++) left_n_te += (x_te[j]<=x[i]);
+				for (j=0; j<n_te; j++) left_n_te += (x_te[j]<(x[i]+x[i+1])/2);
 				if(left_n_te < edge_te || (n_te-left_n_te) < edge_te) continue;
 				
 				temp = left_sum * left_sum / left_wt +

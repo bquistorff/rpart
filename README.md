@@ -26,6 +26,7 @@ We renamed the package `rpart2` so it can be installed side-by-side with `rpart`
 
 Later to do's:
 - put in warning that I don't support subset param and no constraint is put in xpred.
+- my returned `where_te` isn't correct, but don't need
 - allow surrogates (partition.c, notesplit.c)?
 - put constraint in xpred (currently having test be original data)?
 - add back in the vignettes (couldn't get to build easily)?

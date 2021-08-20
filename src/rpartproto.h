@@ -34,7 +34,7 @@ void nodesplit(pNode me, int nodenum, int n1, int n2, int n1_te, int n2_te, int 
 
 int partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2, int n1_te, int n2_te);
 
-int print_tree(pNode me, int maxdepth);
+int print_tree(pNode me, int maxdepth, int id);
 
 SEXP C_rpart(SEXP ncat2, SEXP method2, SEXP opt2, SEXP parms2, SEXP ymat2,
 	   SEXP xmat2, SEXP xmat2_te, SEXP xvals2, SEXP xgrp2, SEXP wt2, SEXP ny2, SEXP cost2);

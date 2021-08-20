@@ -12,6 +12,7 @@
 #include "rpart.h"
 #include "node.h"
 #include "rpartproto.h"
+//# define DEBUG 1
 
 int
 partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2, int n1_te, int n2_te)
@@ -86,7 +87,7 @@ partition(int nodenum, pNode splitnode, double *sumrisk, int n1, int n2, int n1_
 	return 0;
     }
 #ifdef DEBUG
-    print_tree(me, 2);
+    print_tree(me, 1, nodenum);
 #endif
     if (rp.maxsur > 0)
 	surrogate(me, n1, n2);

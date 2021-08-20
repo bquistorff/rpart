@@ -20,16 +20,16 @@ static void printme(pNode me, int id);
 static void print_tree2(pNode me, int id, int mydepth, int target);
 
 void
-print_tree(pNode me, int maxdepth)
+print_tree(pNode me, int maxdepth, int id)
 {
     int i;
 
-    printme(me, 1);
+    printme(me, id);
     for (i = 2; i <= maxdepth; i++) {
 	if (me->leftson)
-	    print_tree2(me->leftson, 2, 2, i);
+	    print_tree2(me->leftson, 2 * id, 2, i);
 	if (me->rightson)
-	    print_tree2(me->rightson, 3, 2, i);
+	    print_tree2(me->rightson, 2 * id + 1, 2, i);
     }
 }
 
@@ -56,15 +56,15 @@ printme(pNode me, int id)
     int i, j, k;
     pSplit ss;
 
-    Rprintf("\n\nNode number %d: %d observations", id, me->num_obs);
+    Rprintf("\n\nNode number %d: %d observations, %d obs_te", id, me->num_obs, me->num_obs_te);
     Rprintf("\t   Complexity param= %f\n", me->complexity);
     Rprintf("  response estimate=%f,  risk/n= %f\n", *(me->response_est),
 	    me->risk / me->num_obs);
 
     if (me->leftson)
-	Rprintf("  left son=%d (%d obs)", 2 * id, (me->leftson)->num_obs);
+	Rprintf("  left son=%d (%d obs, %d obs_te)", 2 * id, (me->leftson)->num_obs, (me->leftson)->num_obs_te);
     if (me->rightson)
-	Rprintf(" right son=%d (%d obs)", 2 * id + 1, (me->rightson)->num_obs);
+	Rprintf(" right son=%d (%d obs, %d obs_te)", 2 * id + 1, (me->rightson)->num_obs, (me->rightson)->num_obs_te);
     if (me->leftson && me->rightson) {
 	i = me->num_obs - ((me->leftson)->num_obs + (me->rightson)->num_obs);
 	if (i == 0)
